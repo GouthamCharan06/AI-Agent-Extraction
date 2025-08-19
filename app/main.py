@@ -5,8 +5,8 @@ from io import BytesIO
 import pandas as pd
 import streamlit as st
 
-# Add project root to Python path
-sys.path.append(str(Path(__file__).resolve().parent.parent))
+# # Add project root to Python path
+# sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from core.ingestion import extract_text_from_file
 from core.routing import classify_document

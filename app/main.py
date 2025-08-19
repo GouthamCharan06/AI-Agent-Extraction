@@ -10,17 +10,21 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from core.ingestion import extract_text_from_file
 from core.routing import classify_document
-from core.extraction import extract_fields
+from core.extraction import extract_fields, ExtractionOutput
 from core.validation import validate_fields
 from core.confidence import update_document_schema
-from core.schema import DocumentSchema
+from core.schema import DocumentSchema, FieldItem as SchemaFieldItem
 
+# ---------------------------
 # Streamlit page config
+# ---------------------------
 st.set_page_config(page_title="AI Document Extraction Agent", layout="wide")
 st.title("AI Document Extraction Agent")
 st.write("Upload a PDF or Image to extract structured data.")
 
+# ---------------------------
 # File upload
+# ---------------------------
 uploaded_file = st.file_uploader(
     "Upload a document (PDF, PNG, JPG, JPEG)", type=["pdf", "png", "jpg", "jpeg"]
 )
@@ -39,38 +43,68 @@ if uploaded_file is not None:
     with open(file_path, "wb") as f:
         f.write(uploaded_file.getbuffer())
 
-    # Show spinner while processing
     with st.spinner("Processing document... This may take a few moments."):
-        # 1️⃣ Ingestion
+        # ---------------------------
+        # 1. Ingestion
+        # ---------------------------
         text = extract_text_from_file(str(file_path))
         if not text.strip():
             st.warning("No text could be extracted from the uploaded file.")
             st.stop()
 
-        # 2️⃣ Routing
+        # ---------------------------
+        # 2. Routing
+        # ---------------------------
         doc_info = classify_document(text)
         doc_type = doc_info.get("doc_type", "unknown")
-        st.success(f"Document Type: {doc_type.replace('_',' ').title()}, Confidence: {doc_info.get('confidence',0):.2f}")
+        st.success(
+            f"Document Type: {doc_type.replace('_',' ').title()}, "
+            f"Confidence: {doc_info.get('confidence', 0):.2f}"
+        )
 
+        # ---------------------------
+        # 3. Extraction
+        # ---------------------------
+        extraction_output: ExtractionOutput = extract_fields(text, doc_type, fields_list)
 
-        # 3️⃣ Extraction
-        fields = extract_fields(text, doc_type, fields_list)
+        # ---------------------------
+        # Convert extraction FieldItems -> schema FieldItems
+        # ---------------------------
+        schema_fields = []
+        for f in extraction_output.fields:
+            value_str = str(f.value) if f.value is not None else ""
+            source_dict = {"page": f.source.page, "bbox": f.source.bbox} if f.source else {}
+            schema_fields.append(
+                SchemaFieldItem(
+                    name=f.name,
+                    value=value_str,
+                    confidence=f.confidence,
+                    source=source_dict
+                )
+            )
 
-        # 4️⃣ Validation
-        qa_info = validate_fields(fields, doc_type)
+        # ---------------------------
+        # 4. Validation
+        # ---------------------------
+        qa_info = validate_fields(schema_fields, doc_type)
 
-        # 5️⃣ Confidence & JSON output
-        document_schema: DocumentSchema = update_document_schema(doc_type, fields, qa_info)
+        # ---------------------------
+        # 5. Confidence & JSON output
+        # ---------------------------
+        document_schema: DocumentSchema = update_document_schema(doc_type, schema_fields, qa_info)
 
-    # Display overall confidence
+    # ---------------------------
+    # Streamlit Display
+    # ---------------------------
+    # Overall Confidence
     st.subheader("Overall Confidence")
     st.progress(int(document_schema.overall_confidence * 100))
 
-    # Display JSON output
+    # JSON Output
     st.subheader("Extracted Document JSON")
-    st.json(document_schema.dict())
+    st.json(document_schema.model_dump())
 
-    # Display per-field confidence bars
+    # Per-field confidence bars
     st.subheader("Per-field Confidence")
     for field in document_schema.fields:
         col1, col2 = st.columns([2, 5])
@@ -78,7 +112,7 @@ if uploaded_file is not None:
             st.markdown(f"**{field.name}**")
         with col2:
             st.progress(int(field.confidence * 100))
-        st.write(f"Value: `{field.value}`")
+        st.write(f"Value: {field.value}")
 
     # Live table preview
     st.subheader("Live Preview of Extracted Fields")
@@ -93,7 +127,9 @@ if uploaded_file is not None:
         st.dataframe(df)
 
     # Download JSON button
-    json_bytes = BytesIO(json.dumps(document_schema.dict(), indent=4).encode("utf-8"))
+    json_bytes = BytesIO(
+        json.dumps(document_schema.model_dump(), indent=4).encode("utf-8")
+    )
     st.download_button(
         label="Download JSON",
         data=json_bytes,

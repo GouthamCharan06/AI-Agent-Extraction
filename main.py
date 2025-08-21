@@ -15,16 +15,14 @@ from core.validation import validate_fields
 from core.confidence import update_document_schema
 from core.schema import DocumentSchema, FieldItem as SchemaFieldItem
 
-# ---------------------------
+
 # Streamlit page config
-# ---------------------------
 st.set_page_config(page_title="AI Document Extraction Agent", layout="wide")
 st.title("AI Document Extraction Agent")
 st.write("Upload a PDF or Image to extract structured data.")
 
-# ---------------------------
+
 # File upload
-# ---------------------------
 uploaded_file = st.file_uploader(
     "Upload a document (PDF, PNG, JPG, JPEG)", type=["pdf", "png", "jpg", "jpeg"]
 )
@@ -44,17 +42,17 @@ if uploaded_file is not None:
         f.write(uploaded_file.getbuffer())
 
     with st.spinner("Processing document... This may take a few moments."):
-        # ---------------------------
+        
         # 1. Ingestion
-        # ---------------------------
+        
         text = extract_text_from_file(str(file_path))
         if not text.strip():
             st.warning("No text could be extracted from the uploaded file.")
             st.stop()
 
-        # ---------------------------
+        
         # 2. Routing
-        # ---------------------------
+        
         doc_info = classify_document(text)
         doc_type = doc_info.get("doc_type", "unknown")
         st.success(
@@ -62,14 +60,14 @@ if uploaded_file is not None:
             f"Confidence: {doc_info.get('confidence', 0):.2f}"
         )
 
-        # ---------------------------
+        
         # 3. Extraction
-        # ---------------------------
+        
         extraction_output: ExtractionOutput = extract_fields(text, doc_type, fields_list)
 
-        # ---------------------------
+        
         # Convert extraction FieldItems -> schema FieldItems
-        # ---------------------------
+        
         schema_fields = []
         for f in extraction_output.fields:
             value_str = str(f.value) if f.value is not None else ""
@@ -83,19 +81,19 @@ if uploaded_file is not None:
                 )
             )
 
-        # ---------------------------
+        
         # 4. Validation
-        # ---------------------------
+        
         qa_info = validate_fields(schema_fields, doc_type)
 
-        # ---------------------------
+        
         # 5. Confidence & JSON output
-        # ---------------------------
+        
         document_schema: DocumentSchema = update_document_schema(doc_type, schema_fields, qa_info)
 
-    # ---------------------------
+    
     # Streamlit Display
-    # ---------------------------
+    
     # Overall Confidence
     st.subheader("Overall Confidence")
     st.progress(int(document_schema.overall_confidence * 100))

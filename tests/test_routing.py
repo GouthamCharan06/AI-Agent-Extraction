@@ -5,7 +5,7 @@ from core.ingestion import extract_text_from_pdf
 from core.routing import detect_doc_type
 
 if __name__ == "__main__":
-    sample_path = os.path.join("data", "Invoice-KS  -2034.pdf")
+    sample_path = os.path.join("data", "{file_name}")
 
     text = extract_text_from_pdf(sample_path)
     print("Extracted text preview:", text[:300])
